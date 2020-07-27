@@ -1,0 +1,507 @@
+---
+title: "week14ip"
+author: "Samuel Chege"
+date: "7/26/2020"
+output: html_document
+---
+
+1. Defining the Question
+
+#a) Specifying the Data Analytic Question
+
+You are a Data analyst at Carrefour Kenya and are currently undertaking a project that will inform the marketing department on the most relevant marketing strategies that will result in the highest no. of sales (total price including tax). 
+
+#b) Defining the Metric for Success
+
+Your project has been divided into four parts where you'll explore a recent marketing dataset by performing various unsupervised learning techniques and later providing recommendations based on your insights.
+
+Part 1: Dimensionality Reduction
+
+This section of the project entails reducing your dataset to a low dimensional dataset using the t-SNE algorithm or PCA. You will be required to perform your analysis and provide insights gained from your analysis.
+
+Part 2: Feature Selection
+
+This section requires you to perform feature selection through the use of the unsupervised learning methods learned earlier this week. You will be required to perform your analysis and provide insights on the features that contribute the most information to the dataset.
+
+Part 3: Association Rules
+
+This section will require that you create association rules that will allow you to identify relationships between variables in the dataset. You are provided with a separate dataset that comprises groups of items that will be associated with others. Just like in the other sections, you will also be required to provide insights for your analysis.
+
+Part 4: Anomaly Detection
+
+You have also been requested to check whether there are any anomalies in the given sales dataset. The objective of this task being fraud detection.
+
+
+#c) Understanding the context
+
+#d) Recording the Experimental Design
+
+Problem Definition
+Data Sourcing
+Check the Data
+Perform Data Cleaning
+Perform Exploratory Data Analysis  (Univariate, Bivariate & Multivariate)
+unsupervised leaning modeling
+Implement the Solution
+Challenge the Solution
+Follow up Questions
+
+#e) Data Relevance
+
+The dataset for this Independent project can be found here
+
+Part 1 and 2: Dataset [Link (http://bit.ly/CarreFourDataset)].
+Part 3: Dataset [Link (http://bit.ly/SupermarketDatasetII)].
+Part 4: Dataset [Link (http://bit.ly/CarreFourSalesDataset.)].
+
+
+2. Reading the Data
+
+```{r}
+#the libraries we'll use
+library(corrplot)
+library(ggplot2) #Plotting
+library(dplyr)
+library(tidyverse)
+library(DataExplorer)
+library(factoextra)
+library(arules)
+library(arulesViz)
+library(Rtsne)
+library(anomalize)
+library(ggbiplot)
+library(Hmisc)
+library(lattice)
+library(survival)
+library(Formula)
+library(psych)
+```
+
+
+```{r}
+dataset_I <- read.csv("http://bit.ly/CarreFourDataset")
+
+dataset_II <- read.csv("http://bit.ly/SupermarketDatasetII")
+
+dataset_III <- read.csv("http://bit.ly/CarreFourSalesDataset")
+```
+
+
+3. Checking the Data
+
+```{r}
+#first dataset
+head(dataset_I)
+tail(dataset_I)
+```
+
+
+```{r}
+#second dataset
+head(dataset_II)
+tail(dataset_II)
+```
+
+
+```{r}
+#third dataset
+head(dataset_III)
+tail(dataset_III)
+```
+
+working with the first dataset
+```{r}
+# Determining the no. of records in our dataset
+dim(dataset_I)
+```
+
+
+```{r}
+# Checking whether each column has an appropriate datatype
+str(dataset_I)
+```
+
+
+```{r}
+#Our column names
+names(dataset_I)
+```
+
+5. Tidying the Dataset
+
+# Checking for Outliers for numeric data
+
+```{r}
+boxplot(dataset_I$Unit.price)
+```
+
+
+```{r}
+boxplot(dataset_I$Quantity)
+```
+
+
+```{r}
+#tax has some outliers
+boxplot(dataset_I$Tax)
+```
+
+
+```{r}
+boxplot(dataset_I$cogs)
+```
+
+
+```{r}
+boxplot(dataset_I$gross.margin.percentage)
+```
+
+
+```{r}
+boxplot(dataset_I$gross.income)
+```
+
+
+```{r}
+boxplot(dataset_I$Rating)
+```
+
+
+```{r}
+boxplot(dataset_I$Total)
+```
+
+# Identifying the Missing Data
+
+```{r}
+colSums(is.na(dataset_I))
+
+```
+
+# Checking statistical summary of the dataset
+
+```{r}
+summary(dataset_I)
+
+```
+
+
+```{r}
+numeric_data = dataset_I[, sapply(dataset_I, is.numeric)]
+
+```
+
+```{r}
+corrplot(cor(numeric_data), method = 'shade')
+
+```
+
+6. Analysis
+
+#univariate
+
+```{r}
+plot_density(dataset_I)
+
+```
+
+
+```{r}
+plot_histogram(dataset_I,ncol = 3L)
+
+```
+
+changing categorical values to numbers
+
+```{r}
+library(lubridate)
+```
+
+```{r}
+#changing date and time columns
+dataset_I$Date <- as.Date(dataset_I$Date, "%m/%d/%Y")
+dataset_I$year <- year(ymd(dataset_I$Date))
+dataset_I$month <- month(ymd(dataset_I$Date)) 
+dataset_I$day <- day(ymd(dataset_I$Date))
+
+dataset_I$hour = format(strptime(dataset_I$Time,"%H:%M"),'%H')
+dataset_I$minute = format(strptime(dataset_I$Time,"%H:%M"),'%M')
+```
+
+
+```{r}
+Branch_enc = data.frame(model.matrix(~0+dataset_I$Branch))
+Customer.type_enc = data.frame(model.matrix(~0+dataset_I$Customer.type))
+Gender_enc = data.frame(model.matrix(~0+dataset_I$Gender))
+Product.line_enc = data.frame(model.matrix(~0+dataset_I$Product.line))
+Payment_enc = data.frame(model.matrix(~0+dataset_I$Payment))
+ 
+# Dropping non numerical columns 
+drop_cols = c('Invoice.ID', 'Branch', 'Date', 'Time','Customer.type','Gender', 'Product.line','Payment')
+ ds_1 = select(data.frame(cbind(dataset_I, Branch_enc, Customer.type_enc,Gender_enc, Product.line_enc, Payment_enc)), -drop_cols)
+```
+
+
+```{r}
+head(ds_1)
+```
+
+```{r}
+#checking if they are all numeric
+str(ds_1)
+```
+```{r}
+#changing hour and minute from character
+ds_1$hour <- as.numeric(as.character(ds_1$hour))
+ds_1$minute <- as.numeric(as.character(ds_1$minute))
+```
+
+```{r}
+str(ds_1)
+```
+
+```{r}
+
+# Identify the columns with zero column variance.
+names(ds_1[, sapply(ds_1, function(v) var(v, na.rm=TRUE)==0)])
+```
+```{r}
+# Drop the columns as they result to error "stop("cannot rescale a constant/zero column to unit variance")"
+ds_1 <- subset(ds_1, select = -c(gross.margin.percentage, day, year, month))
+```
+
+```{r}
+colSums(is.na(ds_1))
+```
+
+Part 1: Dimensionality Reduction
+#PCA
+```{r}
+
+#Using the prcomp() function for PCA.
+
+df.pca = prcomp(ds_1,center = TRUE, scale = TRUE)
+
+df.pca
+
+cat('\n')
+
+('-------------------------------------------------------------------')
+
+summary(df.pca)
+
+cat('\n')
+```
+
+
+```{r}
+plot(df.pca)
+```
+
+
+```{r}
+#install.packages('ggbiplot')
+#install.packages('devtools')
+
+#library(devtools)
+
+#install_github("vqv/ggbiplot")
+
+#library(ggbiplot)
+
+ggbiplot(df.pca)
+```
+
+
+
+```{r}
+# Adding more detail to the plot, we provide arguments rownames as labels
+# 
+ggbiplot(df.pca, labels=rownames(ds_1), obs.scale = 1, var.scale = 1)
+```
+
+#T-SNE
+```{r}
+# Curating the database for analysis 
+# 
+Labels<- ds_1$Rating
+ds_1$Rating<-as.factor(ds_1$Rating)
+
+# For plotting
+#
+colors = rainbow(length(unique(ds_1$Rating)))
+names(colors) = unique(ds_1$Rating)
+```
+
+
+```{r}
+tsne <- Rtsne(ds_1, dims = 2, perplexity=30, verbose=TRUE, max_iter = 500)
+```
+
+
+```{r}
+# Plotting our graph and closely examining the graph
+# 
+plot(tsne$Y, t='n', main="tsne")
+text(tsne$Y, labels=ds_1$Rating, col=colors[ds_1$Rating])
+```
+
+Part 2: Feature Selection
+
+```{r}
+df <- read.csv("http://bit.ly/CarreFourDataset")
+
+```
+
+```{r}
+head(df)
+
+```
+```{r}
+library(lubridate)
+#changing date and time columns
+df$Date <- as.Date(df$Date, "%m/%d/%Y")
+df$year <- year(ymd(df$Date))
+df$month <- month(ymd(df$Date)) 
+df$day <- day(ymd(df$Date))
+
+df$hour = format(strptime(df$Time,"%H:%M"),'%H')
+df$minute = format(strptime(df$Time,"%H:%M"),'%M')
+
+Branch_enc = data.frame(model.matrix(~0+df$Branch))
+Customer.type_enc = data.frame(model.matrix(~0+df$Customer.type))
+Gender_enc = data.frame(model.matrix(~0+df$Gender))
+Product.line_enc = data.frame(model.matrix(~0+df$Product.line))
+Payment_enc = data.frame(model.matrix(~0+df$Payment))
+ 
+# Dropping non numerical columns 
+drop_cols = c('Invoice.ID', 'Branch', 'Date', 'Time','Customer.type','Gender', 'Product.line','Payment')
+ df = select(data.frame(cbind(df, Branch_enc, Customer.type_enc,Gender_enc, Product.line_enc, Payment_enc)), -drop_cols)
+
+```
+
+
+```{r}
+head(df)
+```
+```{r}
+df <- select_if(df,is.numeric)
+str(df)
+```
+
+
+
+```{r}
+# Calculating the correlation matrix
+# ---
+#
+correlationMatrix <- cor(df)
+
+```
+
+
+```{r}
+# Find attributes that are highly correlated
+# ---
+library(caret)
+highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75)
+```
+
+
+```{r}
+# Highly correlated attributes
+# ---
+# 
+highlyCorrelated
+```
+
+
+```{r}
+names(df[,highlyCorrelated])
+
+```
+
+
+```{r}
+# We can remove the variables with a higher correlation 
+# and comparing the results graphically as shown below
+# ---
+# 
+# Removing Redundant Features 
+# ---
+# 
+Dataset2<-Dataset[-highlyCorrelated]
+
+# Performing our graphical comparison
+# ---
+# 
+par(mfrow = c(1, 2))
+corrplot(correlationMatrix, order = "hclust")
+corrplot(cor(Dataset2), order = "hclust")
+```
+
+
+Part 3: Association Rules
+```{r}
+head(dataset_II)
+```
+
+
+```{r}
+str(dataset_II)
+```
+
+```{r}
+#checking null values
+colSums(is.na(dataset_II))
+#olive oil has null values
+```
+
+
+```{r}
+#setting olive.oil to null to remove it
+dataset_II$olive.oil <- NULL
+
+```
+
+
+```{r}
+colSums(is.na(dataset_II))
+```
+
+
+
+```{r}
+
+rules <- apriori(dataset_II, parameter = list(supp = 0.001, conf = 0.8,target = "rules",minlen=2))
+```
+
+```{r}
+summary(rules)
+```
+
+```{r}
+# inspect top 5
+inspect(rules[1:5])
+```
+
+Part 4: Anomaly Detection
+```{r}
+head(dataset_III)
+```
+
+
+```{r}
+library(tidyverse)
+library(anomalize) 
+```
+
+
+```{r}
+dataset_III %>%
+    time_decompose(count) %>%
+    anomalize(remainder) %>%
+    time_recompose() %>%
+    plot_anomalies(time_recomposed = TRUE, ncol = 3, alpha_dots = 0.5)
+```
+
